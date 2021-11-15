@@ -1,90 +1,90 @@
-import { BigInt } from "@graphprotocol/graph-ts"
+import { log, BigInt } from "@graphprotocol/graph-ts";
 import {
-  CryptoManga,
-  Approval,
-  ApprovalForAll,
-  CryptoMangaSpawn,
-  OwnershipTransferred,
-  Paused,
-  Transfer,
-  Unpaused
-} from "../generated/CryptoManga/CryptoManga"
-import { ExampleEntity } from "../generated/schema"
+  ERC721,
+  Transfer as TransferEvent,
+} from "../generated/CryptoManga/ERC721";
+import { Token, Owner, Contract, Transfer } from "../generated/schema";
 
-export function handleApproval(event: Approval): void {
-  // Entities can be loaded from the store using a string ID; this ID
-  // needs to be unique across all entities of the same type
-  let entity = ExampleEntity.load(event.transaction.from.toHex())
+export function handleTransfer(event: TransferEvent): void {
+  log.debug("Transfer detected. From: {} | To: {} | TokenID: {}", [
+    event.params.from.toHexString(),
+    event.params.to.toHexString(),
+    event.params.tokenId.toHexString(),
+  ]);
 
-  // Entities only exist after they have been saved to the store;
-  // `null` checks allow to create entities on demand
-  if (!entity) {
-    entity = new ExampleEntity(event.transaction.from.toHex())
+  let previousOwner = Owner.load(event.params.from.toHexString());
+  let newOwner = Owner.load(event.params.to.toHexString());
+  let token = Token.load(event.params.tokenId.toHexString());
+  let transferId = event.transaction.hash
+    .toHexString()
+    .concat(":".concat(event.transactionLogIndex.toHexString()));
+  let transfer = Transfer.load(transferId);
+  let contract = Contract.load(event.address.toHexString());
+  let instance = ERC721.bind(event.address);
 
-    // Entity fields can be set using simple assignments
-    entity.count = BigInt.fromI32(0)
+  if (previousOwner == null) {
+    previousOwner = new Owner(event.params.from.toHexString());
+
+    previousOwner.balance = BigInt.fromI32(0);
+  } else {
+    let prevBalance = previousOwner.balance;
+    if (prevBalance > BigInt.fromI32(0)) {
+      previousOwner.balance = prevBalance - BigInt.fromI32(1);
+    }
   }
 
-  // BigInt and BigDecimal math are supported
-  entity.count = entity.count + BigInt.fromI32(1)
+  if (newOwner == null) {
+    newOwner = new Owner(event.params.to.toHexString());
+    newOwner.balance = BigInt.fromI32(1);
+  } else {
+    let prevBalance = newOwner.balance;
+    newOwner.balance = prevBalance + BigInt.fromI32(1);
+  }
 
-  // Entity fields can be set based on event parameters
-  entity.owner = event.params.owner
-  entity.approved = event.params.approved
+  if (token == null) {
+    token = new Token(event.params.tokenId.toHexString());
+    token.contract = event.address.toHexString();
 
-  // Entities can be written to the store with `.save()`
-  entity.save()
+    let uri = instance.try_tokenURI(event.params.tokenId);
+    if (!uri.reverted) {
+      token.uri = uri.value;
+    }
+  }
 
-  // Note: If a handler doesn't require existing field values, it is faster
-  // _not_ to load the entity from the store. Instead, create it fresh with
-  // `new Entity(...)`, set the fields that should be updated and save the
-  // entity back to the store. Fields that were not set or unset remain
-  // unchanged, allowing for partial updates to be applied.
+  token.owner = event.params.to.toHexString();
 
-  // It is also possible to access smart contracts from mappings. For
-  // example, the contract that has emitted the event can be connected to
-  // with:
-  //
-  // let contract = Contract.bind(event.address)
-  //
-  // The following functions can then be called on this contract to access
-  // state variables and other data:
-  //
-  // - contract.LISTING_PRICE(...)
-  // - contract.LOOT_DISCOUNTED_PRICE(...)
-  // - contract.MAX_MINT(...)
-  // - contract.MAX_TOKENS(...)
-  // - contract.RESERVED_TOKENS(...)
-  // - contract.WHITELIST_TIER_ONE_DISCOUNTED_PRICE(...)
-  // - contract.WHITELIST_TIER_TWO_DISCOUNTED_PRICE(...)
-  // - contract.balanceOf(...)
-  // - contract.baseTokenURI(...)
-  // - contract.calculateNumDiscounts(...)
-  // - contract.frozen(...)
-  // - contract.getApproved(...)
-  // - contract.isApprovedForAll(...)
-  // - contract.isEligibleForDiscount(...)
-  // - contract.multiSigOwner(...)
-  // - contract.name(...)
-  // - contract.owner(...)
-  // - contract.ownerOf(...)
-  // - contract.paused(...)
-  // - contract.price(...)
-  // - contract.supportsInterface(...)
-  // - contract.symbol(...)
-  // - contract.tokenURI(...)
-  // - contract.whitelistSignerTierOne(...)
-  // - contract.whitelistSignerTierTwo(...)
+  if (transfer == null) {
+    transfer = new Transfer(transferId);
+    transfer.token = event.params.tokenId.toHexString();
+    transfer.from = event.params.from.toHexString();
+    transfer.to = event.params.to.toHexString();
+    transfer.timestamp = event.block.timestamp;
+    transfer.block = event.block.number;
+    transfer.transactionHash = event.transaction.hash.toHexString();
+  }
+
+  if (contract == null) {
+    contract = new Contract(event.address.toHexString());
+  }
+
+  let name = instance.try_name();
+  if (!name.reverted) {
+    contract.name = name.value;
+  }
+
+  let symbol = instance.try_symbol();
+  if (!symbol.reverted) {
+    contract.symbol = symbol.value;
+  }
+
+  let totalSupply = instance.try_totalSupply();
+  if (!totalSupply.reverted) {
+    contract.totalSupply = totalSupply.value;
+  }
+
+  previousOwner.save();
+  newOwner.save();
+  token.save();
+  contract.save();
+  transfer.save();
 }
-
-export function handleApprovalForAll(event: ApprovalForAll): void {}
-
-export function handleCryptoMangaSpawn(event: CryptoMangaSpawn): void {}
-
-export function handleOwnershipTransferred(event: OwnershipTransferred): void {}
-
-export function handlePaused(event: Paused): void {}
-
-export function handleTransfer(event: Transfer): void {}
-
-export function handleUnpaused(event: Unpaused): void {}

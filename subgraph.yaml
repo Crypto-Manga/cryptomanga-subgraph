@@ -1,4 +1,4 @@
-specVersion: 0.0.1
+specVersion: 0.0.2
 schema:
   file: ./schema.graphql
 dataSources:
@@ -7,35 +7,21 @@ dataSources:
     network: mainnet
     source:
       address: "0xa5b7f12346048e8a3e780dbeb4c2f469be8ffcef"
-      abi: CryptoManga
+      abi: ERC721
+      startBlock: 13258947
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.5
       language: wasm/assemblyscript
       entities:
-        - Approval
-        - ApprovalForAll
-        - CryptoMangaSpawn
-        - OwnershipTransferred
-        - Paused
+        - Token
+        - Owner
+        - Contract
         - Transfer
-        - Unpaused
       abis:
-        - name: CryptoManga
-          file: ./abis/CryptoManga.json
+        - name: ERC721
+          file: ./abis/ERC721.json
       eventHandlers:
-        - event: Approval(indexed address,indexed address,indexed uint256)
-          handler: handleApproval
-        - event: ApprovalForAll(indexed address,indexed address,bool)
-          handler: handleApprovalForAll
-        - event: CryptoMangaSpawn(indexed uint256)
-          handler: handleCryptoMangaSpawn
-        - event: OwnershipTransferred(indexed address,indexed address)
-          handler: handleOwnershipTransferred
-        - event: Paused(address)
-          handler: handlePaused
         - event: Transfer(indexed address,indexed address,indexed uint256)
           handler: handleTransfer
-        - event: Unpaused(address)
-          handler: handleUnpaused
       file: ./src/mapping.ts
